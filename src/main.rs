@@ -5,7 +5,10 @@ use ansi_term::Colour;
 use std::env;
 use std::fs;
 use std::path;
-use std::vec;
+
+static IGNORE_PATHS: [&'static str; 1] = [
+    ".git",
+];
 
 fn main() {
     let curdir = env::current_dir().unwrap();
@@ -42,11 +45,15 @@ impl DisplayColour for path::PathBuf {
 }
 
 fn explore(path: &path::PathBuf) -> () {
-    println!("{}", path.display_colour());
-
     if !path.is_dir() {
+        println!("{}", path.display_colour());
         return;
     }
+
+    if IGNORE_PATHS.contains(&path.file_name().unwrap().to_str().unwrap()) {
+        return;
+    }
+    println!("{}:", path.display_colour());
 
     let mut q: Vec<path::PathBuf> = Vec::new();
     for item in fs::read_dir(path).unwrap() {
@@ -60,6 +67,8 @@ fn explore(path: &path::PathBuf) -> () {
             },
         };
     }
+
+    print!("\n");
 
     for d in q {
         explore(&d);
