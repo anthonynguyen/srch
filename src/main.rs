@@ -23,12 +23,14 @@ Usage:
 Options:
     -h, --help      Show this help screen
     -v, --version   Show this program's version
+    -d              Also search inside directories starting with a . character
 ";
 
 #[derive(RustcDecodable)]
 struct Args {
     arg_pattern: String,
     arg_path: String,
+    flag_d: bool,
 }
 
 fn main() {
@@ -41,16 +43,16 @@ fn main() {
     let dir = path::PathBuf::from(&args.arg_path);
     if args.arg_path.is_empty() {
         let curdir = path::PathBuf::from(".");
-        handle(&curdir, &args.arg_pattern);
+        handle(&curdir, &args);
     } else if !dir.exists() {
         println!("Invalid search path: {}", Colour::Red.bold().paint(args.arg_path.as_str()));
         process::exit(1);
     } else {
-        handle(&dir, &args.arg_pattern);
+        handle(&dir, &args);
     }
 }
 
-fn ignore (path: &path::PathBuf) -> io::Result<bool> {
+fn ignore (path: &path::PathBuf, args: &Args) -> io::Result<bool> {
     if !path.is_dir() {
         return Ok(true)
     }
@@ -58,6 +60,10 @@ fn ignore (path: &path::PathBuf) -> io::Result<bool> {
     let m = try!(path.symlink_metadata()).file_type();
     if m.is_symlink() || m.is_block_device() || m.is_char_device() || m.is_fifo() || m.is_socket() {
         return Ok(true)
+    }
+
+    if args.flag_d {
+        return Ok(false)
     }
 
     let fname = path.file_name();
@@ -103,14 +109,26 @@ impl Misc for path::PathBuf {
     }
 }
 
-fn handle(path: &path::PathBuf, pattern: &String) -> () {
+fn handle(path: &path::PathBuf, args: &Args) -> () {
     let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
     let mut results = (0, 0);
+
+    let pattern = &args.arg_pattern;
 
     println!("Searching {} for {}", Colour::Yellow.bold().paint(path.to_str().unwrap()), Colour::Green.bold().paint(pattern.as_str()));
     q.push_back(path.clone());
     while q.len() > 0 {
         let p = q.pop_front().unwrap();
+        let i = ignore(&p, args);
+        match i {
+            Ok(tf) => {
+                if tf {
+                    continue;
+                }
+            },
+            Err(_) => continue,
+        };
+
         let r = explore(&mut q, &p, pattern);
         match r {
             Ok(n) => {
@@ -126,10 +144,6 @@ fn handle(path: &path::PathBuf, pattern: &String) -> () {
 }
 
 fn explore(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, pattern: &String) -> std::io::Result<(i32, i32)> {
-    if try!(ignore(path)) {
-        return Ok((0, 0))
-    }
-
     let mut directories = 0;
     let mut files = 0;
 
