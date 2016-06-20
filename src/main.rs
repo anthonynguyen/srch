@@ -34,7 +34,7 @@ fn main() {
                             .unwrap_or_else(|e| e.exit());
 
     let curdir = path::PathBuf::from("./");
-    explore(&curdir, &args.arg_pattern);
+    explore(&curdir, &args.arg_pattern).unwrap();
 }
 
 fn ignore (path: &path::PathBuf) -> bool {
@@ -86,14 +86,14 @@ impl Misc for path::PathBuf {
     }
 }
 
-fn explore(path: &path::PathBuf, pattern: &String) -> () {
+fn explore(path: &path::PathBuf, pattern: &String) -> std::io::Result<()> {
     if !path.is_dir() || ignore(&path) {
-        return;
+        return Ok(())
     }
 
     let mut q: Vec<path::PathBuf> = Vec::new();
-    for item in fs::read_dir(path).unwrap() {
-        let f = item.unwrap(); // f is a DirEntry
+    for item in try!(fs::read_dir(path)) {
+        let f = try!(item); // f is a DirEntry
         if f.path().is_dir() {
             q.push(f.path());
         };
@@ -103,6 +103,7 @@ fn explore(path: &path::PathBuf, pattern: &String) -> () {
     }
 
     for d in q {
-        explore(&d, &pattern);
+        try!(explore(&d, &pattern));
     }
+    Ok(())
 }
