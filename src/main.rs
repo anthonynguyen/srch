@@ -21,10 +21,10 @@ Usage:
     srch --version
 
 Options:
-    -h, --help        Show this help screen
-    -v, --version     Show this program's version
-    -i, --invisible   Also search inside directories starting with a . character
-    -f, --filesonly   Only search filenames and NOT directory names
+    -h, --help              Show this help screen
+    -v, --version           Show this program's version
+    -i, --invisible         Also search inside directories starting with a . character
+    -f, --filesonly         Only search filenames and NOT directory names
 ";
 
 #[derive(RustcDecodable)]
@@ -115,9 +115,27 @@ impl Misc for path::PathBuf {
     }
 }
 
+struct SearchResults {
+    directories: i32,
+    files: i32,
+
+    scanned: i32,
+    pushed: i32,
+}
+
+impl SearchResults {
+    fn add(&mut self, other: SearchResults) {
+        self.directories += other.directories;
+        self.files += other.files;
+
+        self.scanned += other.scanned;
+        self.pushed += other.pushed;
+    }
+}
+
 fn handle(path: &path::PathBuf, args: &Args) -> () {
     let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
-    let mut results = (0, 0);
+    let mut results = SearchResults{directories: 0, files: 0, scanned: 0, pushed: 1};
 
     let pattern = &args.arg_pattern;
 
@@ -135,46 +153,47 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
             Err(_) => continue,
         };
 
-        let r = explore(&mut q, &p, pattern, args.flag_f || args.flag_filesonly);
+        let r = search(&mut q, &p, pattern, args.flag_f || args.flag_filesonly);
         match r {
             Ok(n) => {
-                results.0 += n.0;
-                results.1 += n.1;
+                results.add(n);
             },
             Err(_) => (),
         };
     }
 
-    let (directories, files) = results;
-    println!("Search results: {} directories, {} files", Colour::Cyan.bold().paint(directories.to_string()), Colour::Blue.bold().paint(files.to_string()));
+    print!("Explored {} directories and searched {} objects, ", Colour::Yellow.bold().paint(results.pushed.to_string()), Colour::Yellow.bold().paint(results.scanned.to_string()));
+    println!("found {} directories and {} files", Colour::Green.bold().paint(results.directories.to_string()), Colour::Green.bold().paint(results.files.to_string()));
 }
 
-fn explore(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, pattern: &String, ignore_dirs: bool) -> std::io::Result<(i32, i32)> {
-    let mut directories = 0;
-    let mut files = 0;
+fn search(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, pattern: &String, ignore_dirs: bool) -> std::io::Result<SearchResults> {
+    let mut results = SearchResults{directories: 0, files: 0, scanned: 0, pushed: 0};
 
     for item in try!(path.read_dir()) {
         let f = try!(item); // f is a DirEntry
         let dir: bool;
         if f.path().is_dir() {
+            results.pushed += 1;
             q.push_back(f.path());
             if ignore_dirs {
                 continue;
             }
             dir = true;
+            results.scanned += 1;
         } else {
             dir = false;
+            results.scanned += 1;
         }
 
         if f.path().matches(&pattern) {
             println!("{}", try!(f.path().display_colour()));
             if dir {
-                directories += 1;
+                results.directories += 1;
             } else {
-                files += 1;
+                results.files += 1;
             }
         }
     }
 
-    Ok((directories, files))
+    Ok(results)
 }
