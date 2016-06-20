@@ -3,7 +3,6 @@ extern crate docopt;
 extern crate rustc_serialize;
 
 use ansi_term::Colour;
-use ansi_term::Style;
 use docopt::Docopt;
 
 use std::fs;
@@ -35,7 +34,7 @@ fn main() {
                             .unwrap_or_else(|e| e.exit());
 
     let curdir = path::PathBuf::from("./");
-    explore(&curdir);
+    explore(&curdir, &args.arg_pattern);
 }
 
 fn ignore (path: &path::PathBuf) -> bool {
@@ -52,61 +51,58 @@ fn ignore (path: &path::PathBuf) -> bool {
     false
 }
 
-trait IsDir {
+trait Misc {
     fn is_dir(&self) -> bool;
+    fn display_colour(&self) -> String;
+    fn matches(&self, pattern: &String) -> bool;
 }
 
-impl IsDir for fs::DirEntry {
-    fn is_dir(&self) -> bool {
-        self.metadata().unwrap().is_dir()
-    }
-}
-
-impl IsDir for path::PathBuf {
+impl Misc for path::PathBuf {
     fn is_dir(&self) -> bool {
         fs::metadata(self).unwrap().is_dir()
     }
-}
 
-trait DisplayColour {
-    fn display_colour(&self, dstyle: Style, fstyle: Style, short: bool) -> String;
-}
+    fn display_colour(&self) -> String {
+        let s: &str = self.to_str().unwrap();
 
-impl DisplayColour for path::PathBuf {
-    fn display_colour(&self, dstyle: Style, fstyle: Style, short: bool) -> String {
-        let style: Style;
         if self.is_dir() {
-            style = dstyle;
+            Colour::Yellow.bold().paint(s).to_string()
         } else {
-            style = fstyle;
+            s.to_string()
+        }
+    }
+
+    fn matches(&self, pattern: &String) -> bool {
+        let fname = self.file_name();
+        if fname == None {
+            return false
         }
 
-        if short {
-            style.paint(self.file_name().unwrap().to_str().unwrap()).to_string()
-        } else {
-            style.paint(self.to_str().unwrap()).to_string()
+        let fname = fname.unwrap().to_str().unwrap().to_string();
+        if fname == *pattern {
+            return true
         }
+        false
     }
 }
 
-fn explore(path: &path::PathBuf) -> () {
+fn explore(path: &path::PathBuf, pattern: &String) -> () {
     if !path.is_dir() || ignore(&path) {
         return;
     }
-    println!("{}:", path.display_colour(Colour::Yellow.bold(), Style::default(), false));
 
     let mut q: Vec<path::PathBuf> = Vec::new();
     for item in fs::read_dir(path).unwrap() {
         let f = item.unwrap(); // f is a DirEntry
-        if f.is_dir() {
+        if f.path().is_dir() {
             q.push(f.path());
         };
-        println!("{}", f.path().display_colour(Colour::Cyan.normal(), Style::default(), true));
+        if f.path().matches(&pattern) {
+            println!("{}", f.path().display_colour());
+        }
     }
 
-    print!("\n");
-
     for d in q {
-        explore(&d);
+        explore(&d, &pattern);
     }
 }
