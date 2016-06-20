@@ -9,6 +9,8 @@ use std::fs;
 use std::io;
 use std::path;
 
+use std::os::unix::fs::FileTypeExt;
+
 const USAGE: &'static str = "
 srch, a command-line file search utility written in Rust.
 
@@ -22,7 +24,7 @@ Options:
     -v, --version   Show this program's version
 ";
 
-#[derive(Debug, RustcDecodable)]
+#[derive(RustcDecodable)]
 struct Args {
     arg_pattern: String,
 }
@@ -38,18 +40,27 @@ fn main() {
     handle(&curdir, &args.arg_pattern);
 }
 
-fn ignore (path: &path::PathBuf) -> bool {
+fn ignore (path: &path::PathBuf) -> io::Result<bool> {
+    if !try!(path.is_dir()) {
+        return Ok(true)
+    }
+
+    let m = try!(fs::symlink_metadata(path)).file_type();
+    if m.is_symlink() || m.is_block_device() || m.is_char_device() || m.is_fifo() || m.is_socket() {
+        return Ok(true)
+    }
+
     let fname = path.file_name();
     if fname == None {
-        return false
+        return Ok(false)
     }
 
     let fname = fname.unwrap().to_str().unwrap();
     if fname.chars().next().unwrap() == '.' {
-        return true
+        return Ok(true)
     }
 
-    false
+    Ok(false)
 }
 
 trait Misc {
@@ -96,7 +107,7 @@ fn handle(path: &path::PathBuf, pattern: &String) -> () {
 }
 
 fn explore(path: &path::PathBuf, pattern: &String) -> std::io::Result<()> {
-    if !try!(path.is_dir()) || ignore(&path) {
+    if try!(ignore(path)) {
         return Ok(())
     }
 
