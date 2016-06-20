@@ -1,12 +1,39 @@
 extern crate ansi_term;
+extern crate docopt;
+extern crate rustc_serialize;
 
 use ansi_term::Colour;
 use ansi_term::Style;
+use docopt::Docopt;
 
 use std::fs;
 use std::path;
 
+const USAGE: &'static str = "
+srch, a command-line file search utility written in Rust.
+
+Usage:
+    srch [options] <pattern>
+    srch --help
+    srch --version
+
+Options:
+    -h, --help      Show this help screen
+    -v, --version   Show this program's version
+";
+
+#[derive(Debug, RustcDecodable)]
+struct Args {
+    arg_pattern: String,
+}
+
 fn main() {
+    let args: Args = Docopt::new(USAGE).unwrap()
+                            .help(true)
+                            .version(Some(String::from("srch, version ") + option_env!("CARGO_PKG_VERSION").unwrap_or("unknown")))
+                            .decode()
+                            .unwrap_or_else(|e| e.exit());
+
     let curdir = path::PathBuf::from("./");
     explore(&curdir);
 }
