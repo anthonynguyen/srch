@@ -21,16 +21,22 @@ Usage:
     srch --version
 
 Options:
-    -h, --help      Show this help screen
-    -v, --version   Show this program's version
-    -d              Also search inside directories starting with a . character
+    -h, --help        Show this help screen
+    -v, --version     Show this program's version
+    -i, --invisible   Also search inside directories starting with a . character
+    -f, --filesonly   Only search filenames and NOT directory names
 ";
 
 #[derive(RustcDecodable)]
 struct Args {
     arg_pattern: String,
     arg_path: String,
-    flag_d: bool,
+
+    flag_i: bool,
+    flag_invisible: bool,
+
+    flag_f: bool,
+    flag_filesonly: bool,
 }
 
 fn main() {
@@ -62,7 +68,7 @@ fn ignore (path: &path::PathBuf, args: &Args) -> io::Result<bool> {
         return Ok(true)
     }
 
-    if args.flag_d {
+    if args.flag_i || args.flag_invisible {
         return Ok(false)
     }
 
@@ -129,7 +135,7 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
             Err(_) => continue,
         };
 
-        let r = explore(&mut q, &p, pattern);
+        let r = explore(&mut q, &p, pattern, args.flag_f || args.flag_filesonly);
         match r {
             Ok(n) => {
                 results.0 += n.0;
@@ -143,7 +149,7 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
     println!("Search results: {} directories, {} files", Colour::Cyan.bold().paint(directories.to_string()), Colour::Blue.bold().paint(files.to_string()));
 }
 
-fn explore(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, pattern: &String) -> std::io::Result<(i32, i32)> {
+fn explore(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, pattern: &String, ignore_dirs: bool) -> std::io::Result<(i32, i32)> {
     let mut directories = 0;
     let mut files = 0;
 
@@ -152,6 +158,9 @@ fn explore(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, p
         let dir: bool;
         if f.path().is_dir() {
             q.push_back(f.path());
+            if ignore_dirs {
+                continue;
+            }
             dir = true;
         } else {
             dir = false;
