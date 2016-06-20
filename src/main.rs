@@ -3,17 +3,26 @@ extern crate ansi_term;
 use ansi_term::Colour;
 use ansi_term::Style;
 
-use std::env;
 use std::fs;
 use std::path;
 
-static IGNORE_PATHS: [&'static str; 1] = [
-    ".git",
-];
-
 fn main() {
-    let curdir = env::current_dir().unwrap();
+    let curdir = path::PathBuf::from("./");
     explore(&curdir);
+}
+
+fn ignore (path: &path::PathBuf) -> bool {
+    let fname = path.file_name();
+    if fname == None {
+        return false
+    }
+
+    let fname = fname.unwrap().to_str().unwrap();
+    if fname.chars().next().unwrap() == '.' {
+        return true
+    }
+
+    false
 }
 
 trait IsDir {
@@ -54,8 +63,7 @@ impl DisplayColour for path::PathBuf {
 }
 
 fn explore(path: &path::PathBuf) -> () {
-    if !path.is_dir() ||
-       IGNORE_PATHS.contains(&path.file_name().unwrap().to_str().unwrap()) {
+    if !path.is_dir() || ignore(&path) {
         return;
     }
     println!("{}:", path.display_colour(Colour::Yellow.bold(), Style::default(), false));
