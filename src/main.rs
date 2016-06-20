@@ -6,6 +6,7 @@ use ansi_term::Colour;
 use docopt::Docopt;
 
 use std::fs;
+use std::io;
 use std::path;
 
 const USAGE: &'static str = "
@@ -34,7 +35,7 @@ fn main() {
                             .unwrap_or_else(|e| e.exit());
 
     let curdir = path::PathBuf::from("./");
-    explore(&curdir, &args.arg_pattern).unwrap();
+    handle(&curdir, &args.arg_pattern);
 }
 
 fn ignore (path: &path::PathBuf) -> bool {
@@ -52,23 +53,24 @@ fn ignore (path: &path::PathBuf) -> bool {
 }
 
 trait Misc {
-    fn is_dir(&self) -> bool;
-    fn display_colour(&self) -> String;
+    fn is_dir(&self) -> io::Result<bool>;
+    fn display_colour(&self) -> io::Result<String>;
     fn matches(&self, pattern: &String) -> bool;
 }
 
 impl Misc for path::PathBuf {
-    fn is_dir(&self) -> bool {
-        fs::metadata(self).unwrap().is_dir()
+    fn is_dir(&self) -> io::Result<bool> {
+        let m = try!(fs::metadata(self));
+        Ok(m.is_dir())
     }
 
-    fn display_colour(&self) -> String {
+    fn display_colour(&self) -> io::Result<String> {
         let s: &str = self.to_str().unwrap();
 
-        if self.is_dir() {
-            Colour::Yellow.bold().paint(s).to_string()
+        if try!(self.is_dir()) {
+            Ok(Colour::Yellow.bold().paint(s).to_string())
         } else {
-            s.to_string()
+            Ok(s.to_string())
         }
     }
 
@@ -86,24 +88,31 @@ impl Misc for path::PathBuf {
     }
 }
 
+fn handle(path: &path::PathBuf, pattern: &String) -> () {
+    match explore(path, pattern) {
+        Ok(_) => (),
+        Err(_) => (),
+    }
+}
+
 fn explore(path: &path::PathBuf, pattern: &String) -> std::io::Result<()> {
-    if !path.is_dir() || ignore(&path) {
+    if !try!(path.is_dir()) || ignore(&path) {
         return Ok(())
     }
 
     let mut q: Vec<path::PathBuf> = Vec::new();
     for item in try!(fs::read_dir(path)) {
         let f = try!(item); // f is a DirEntry
-        if f.path().is_dir() {
+        if try!(f.path().is_dir()) {
             q.push(f.path());
         };
         if f.path().matches(&pattern) {
-            println!("{}", f.path().display_colour());
+            println!("{}", try!(f.path().display_colour()));
         }
     }
 
     for d in q {
-        try!(explore(&d, &pattern));
+        handle(&d, pattern);
     }
     Ok(())
 }
