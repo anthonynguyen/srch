@@ -8,6 +8,7 @@ use docopt::Docopt;
 use std::collections;
 use std::io;
 use std::path;
+use std::process;
 
 use std::os::unix::fs::FileTypeExt;
 
@@ -15,7 +16,7 @@ const USAGE: &'static str = "
 srch, a command-line file search utility written in Rust.
 
 Usage:
-    srch [options] <pattern>
+    srch [options] [<path>] <pattern>
     srch --help
     srch --version
 
@@ -27,6 +28,7 @@ Options:
 #[derive(RustcDecodable)]
 struct Args {
     arg_pattern: String,
+    arg_path: String,
 }
 
 fn main() {
@@ -36,8 +38,16 @@ fn main() {
                             .decode()
                             .unwrap_or_else(|e| e.exit());
 
-    let curdir = path::PathBuf::from("./");
-    handle(&curdir, &args.arg_pattern);
+    let dir = path::PathBuf::from(&args.arg_path);
+    if args.arg_path.is_empty() {
+        let curdir = path::PathBuf::from(".");
+        handle(&curdir, &args.arg_pattern);
+    } else if !dir.exists() {
+        println!("Invalid search path: {}", Colour::Red.bold().paint(args.arg_path.as_str()));
+        process::exit(1);
+    } else {
+        handle(&dir, &args.arg_pattern);
+    }
 }
 
 fn ignore (path: &path::PathBuf) -> io::Result<bool> {
@@ -97,6 +107,7 @@ fn handle(path: &path::PathBuf, pattern: &String) -> () {
     let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
     let mut results = (0, 0);
 
+    println!("Searching {} for {}", Colour::Yellow.bold().paint(path.to_str().unwrap()), Colour::Green.bold().paint(pattern.as_str()));
     q.push_back(path.clone());
     while q.len() > 0 {
         let p = q.pop_front().unwrap();
