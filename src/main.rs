@@ -42,7 +42,7 @@ struct Args {
 fn main() {
     let args: Args = Docopt::new(USAGE).unwrap()
                             .help(true)
-                            .version(Some(String::from("srch, version ") + option_env!("CARGO_PKG_VERSION").unwrap_or("unknown")))
+                            .version(Some(String::from("srch ") + option_env!("CARGO_PKG_VERSION").unwrap_or("unknown")))
                             .decode()
                             .unwrap_or_else(|e| e.exit());
 

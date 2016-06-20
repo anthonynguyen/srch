@@ -1,6 +1,17 @@
 # srch
 
-`srch` is a simple, work-in-progress, command-line file search utility written in Rust.
+`srch` is a simple command-line file search utility written in Rust.
+
+    Usage:
+        srch [options] [<path>] <pattern>
+        srch --help
+        srch --version
+
+    Options:
+        -h, --help              Show this help screen
+        -v, --version           Show this program's version
+        -i, --invisible         Also search inside directories starting with a . character
+        -f, --filesonly         Only search filenames and NOT directory names
 
 ### Installation
 
