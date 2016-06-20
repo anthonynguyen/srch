@@ -5,6 +5,7 @@ extern crate rustc_serialize;
 use ansi_term::Colour;
 use docopt::Docopt;
 
+use std::collections;
 use std::fs;
 use std::io;
 use std::path;
@@ -79,7 +80,7 @@ impl Misc for path::PathBuf {
         let s: &str = self.to_str().unwrap();
 
         if try!(self.is_dir()) {
-            Ok(Colour::Yellow.bold().paint(s).to_string())
+            Ok(Colour::Purple.paint(s).to_string())
         } else {
             Ok(s.to_string())
         }
@@ -100,30 +101,53 @@ impl Misc for path::PathBuf {
 }
 
 fn handle(path: &path::PathBuf, pattern: &String) -> () {
-    match explore(path, pattern) {
-        Ok(_) => (),
-        Err(_) => (),
+    let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
+    let mut results = (0, 0);
+
+    q.push_back(path.clone());
+    while q.len() > 0 {
+        let p = q.pop_front().unwrap();
+        let r = explore(&mut q, &p, pattern);
+        match r {
+            Ok(n) => {
+                results.0 += n.0;
+                results.1 += n.1;
+            },
+            Err(_) => (),
+        };
     }
+
+    let (directories, files) = results;
+    println!("Search results: {} directories, {} files", Colour::Cyan.bold().paint(directories.to_string()), Colour::Blue.bold().paint(files.to_string()));
 }
 
-fn explore(path: &path::PathBuf, pattern: &String) -> std::io::Result<()> {
+fn explore(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, pattern: &String) -> std::io::Result<(i32, i32)> {
     if try!(ignore(path)) {
-        return Ok(())
+        return Ok((0, 0))
     }
 
-    let mut q: Vec<path::PathBuf> = Vec::new();
+    let mut directories = 0;
+    let mut files = 0;
+
     for item in try!(fs::read_dir(path)) {
         let f = try!(item); // f is a DirEntry
+        let dir: bool;
         if try!(f.path().is_dir()) {
-            q.push(f.path());
-        };
+            q.push_back(f.path());
+            dir = true;
+        } else {
+            dir = false;
+        }
+
         if f.path().matches(&pattern) {
             println!("{}", try!(f.path().display_colour()));
+            if dir {
+                directories += 1;
+            } else {
+                files += 1;
+            }
         }
     }
 
-    for d in q {
-        handle(&d, pattern);
-    }
-    Ok(())
+    Ok((directories, files))
 }
