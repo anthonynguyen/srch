@@ -6,7 +6,6 @@ use ansi_term::Colour;
 use docopt::Docopt;
 
 use std::collections;
-use std::fs;
 use std::io;
 use std::path;
 
@@ -42,11 +41,11 @@ fn main() {
 }
 
 fn ignore (path: &path::PathBuf) -> io::Result<bool> {
-    if !try!(path.is_dir()) {
+    if !path.is_dir() {
         return Ok(true)
     }
 
-    let m = try!(fs::symlink_metadata(path)).file_type();
+    let m = try!(path.symlink_metadata()).file_type();
     if m.is_symlink() || m.is_block_device() || m.is_char_device() || m.is_fifo() || m.is_socket() {
         return Ok(true)
     }
@@ -65,21 +64,15 @@ fn ignore (path: &path::PathBuf) -> io::Result<bool> {
 }
 
 trait Misc {
-    fn is_dir(&self) -> io::Result<bool>;
     fn display_colour(&self) -> io::Result<String>;
     fn matches(&self, pattern: &String) -> bool;
 }
 
 impl Misc for path::PathBuf {
-    fn is_dir(&self) -> io::Result<bool> {
-        let m = try!(fs::metadata(self));
-        Ok(m.is_dir())
-    }
-
     fn display_colour(&self) -> io::Result<String> {
         let s: &str = self.to_str().unwrap();
 
-        if try!(self.is_dir()) {
+        if self.is_dir() {
             Ok(Colour::Purple.paint(s).to_string())
         } else {
             Ok(s.to_string())
@@ -129,10 +122,10 @@ fn explore(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, p
     let mut directories = 0;
     let mut files = 0;
 
-    for item in try!(fs::read_dir(path)) {
+    for item in try!(path.read_dir()) {
         let f = try!(item); // f is a DirEntry
         let dir: bool;
-        if try!(f.path().is_dir()) {
+        if f.path().is_dir() {
             q.push_back(f.path());
             dir = true;
         } else {
