@@ -40,46 +40,49 @@ struct Args {
 }
 
 fn main() {
-    let args: Args = Docopt::new(USAGE).unwrap()
-                            .help(true)
-                            .version(Some(String::from("srch ") + option_env!("CARGO_PKG_VERSION").unwrap_or("unknown")))
-                            .decode()
-                            .unwrap_or_else(|e| e.exit());
+    let args: Args = Docopt::new(USAGE)
+        .unwrap()
+        .help(true)
+        .version(Some(String::from("srch ") +
+                      option_env!("CARGO_PKG_VERSION").unwrap_or("unknown")))
+        .decode()
+        .unwrap_or_else(|e| e.exit());
 
     let dir = path::PathBuf::from(&args.arg_path);
     if args.arg_path.is_empty() {
         let curdir = path::PathBuf::from(".");
         handle(&curdir, &args);
     } else if !dir.exists() {
-        println!("Invalid search path: {}", Colour::Red.bold().paint(args.arg_path.as_str()));
+        println!("Invalid search path: {}",
+                 Colour::Red.bold().paint(args.arg_path.as_str()));
         process::exit(1);
     } else {
         handle(&dir, &args);
     }
 }
 
-fn ignore (path: &path::PathBuf, args: &Args) -> io::Result<bool> {
+fn ignore(path: &path::PathBuf, args: &Args) -> io::Result<bool> {
     if !path.is_dir() {
-        return Ok(true)
+        return Ok(true);
     }
 
     let m = try!(path.symlink_metadata()).file_type();
     if m.is_symlink() || m.is_block_device() || m.is_char_device() || m.is_fifo() || m.is_socket() {
-        return Ok(true)
+        return Ok(true);
     }
 
     if args.flag_i || args.flag_invisible {
-        return Ok(false)
+        return Ok(false);
     }
 
     let fname = path.file_name();
     if fname == None {
-        return Ok(false)
+        return Ok(false);
     }
 
     let fname = fname.unwrap().to_str().unwrap();
     if fname.chars().next().unwrap() == '.' {
-        return Ok(true)
+        return Ok(true);
     }
 
     Ok(false)
@@ -104,12 +107,12 @@ impl Misc for path::PathBuf {
     fn matches(&self, pattern: &String) -> bool {
         let fname = self.file_name();
         if fname == None {
-            return false
+            return false;
         }
 
         let fname = fname.unwrap().to_str().unwrap().to_string();
         if fname == *pattern {
-            return true
+            return true;
         }
         false
     }
@@ -135,11 +138,18 @@ impl SearchResults {
 
 fn handle(path: &path::PathBuf, args: &Args) -> () {
     let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
-    let mut results = SearchResults{directories: 0, files: 0, scanned: 0, pushed: 1};
+    let mut results = SearchResults {
+        directories: 0,
+        files: 0,
+        scanned: 0,
+        pushed: 1,
+    };
 
     let pattern = &args.arg_pattern;
 
-    println!("Searching {} for {}", Colour::Yellow.bold().paint(path.to_str().unwrap()), Colour::Green.bold().paint(pattern.as_str()));
+    println!("Searching {} for {}",
+             Colour::Yellow.bold().paint(path.to_str().unwrap()),
+             Colour::Green.bold().paint(pattern.as_str()));
     q.push_back(path.clone());
     while q.len() > 0 {
         let p = q.pop_front().unwrap();
@@ -149,7 +159,7 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
                 if tf {
                     continue;
                 }
-            },
+            }
             Err(_) => continue,
         };
 
@@ -157,17 +167,30 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
         match r {
             Ok(n) => {
                 results.add(n);
-            },
+            }
             Err(_) => (),
         };
     }
 
-    print!("Explored {} directories and searched {} objects, ", Colour::Yellow.bold().paint(results.pushed.to_string()), Colour::Yellow.bold().paint(results.scanned.to_string()));
-    println!("found {} directories and {} files", Colour::Green.bold().paint(results.directories.to_string()), Colour::Green.bold().paint(results.files.to_string()));
+    print!("Explored {} directories and searched {} objects, ",
+           Colour::Yellow.bold().paint(results.pushed.to_string()),
+           Colour::Yellow.bold().paint(results.scanned.to_string()));
+    println!("found {} directories and {} files",
+             Colour::Green.bold().paint(results.directories.to_string()),
+             Colour::Green.bold().paint(results.files.to_string()));
 }
 
-fn search(q: &mut collections::VecDeque<path::PathBuf>, path: &path::PathBuf, pattern: &String, ignore_dirs: bool) -> std::io::Result<SearchResults> {
-    let mut results = SearchResults{directories: 0, files: 0, scanned: 0, pushed: 0};
+fn search(q: &mut collections::VecDeque<path::PathBuf>,
+          path: &path::PathBuf,
+          pattern: &String,
+          ignore_dirs: bool)
+          -> std::io::Result<SearchResults> {
+    let mut results = SearchResults {
+        directories: 0,
+        files: 0,
+        scanned: 0,
+        pushed: 0,
+    };
 
     for item in try!(path.read_dir()) {
         let f = try!(item); // f is a DirEntry
