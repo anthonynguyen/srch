@@ -26,7 +26,6 @@ Options:
     -v, --version           Show this program's version
     -i, --invisible         Also search inside directories starting with a . character
     -f, --filesonly         Only search filenames and NOT directory names
-    -r, --regex             Treat <pattern> as a regular expression
 ";
 
 #[derive(RustcDecodable)]
@@ -39,19 +38,14 @@ struct Args {
 
     flag_f: bool,
     flag_filesonly: bool,
-
-    flag_r: bool,
-    flag_regex: bool,
 }
 
 struct Settings {
-    pattern: String,
-    re: Regex,
+    pattern: Regex,
     path: String,
 
     invisible: bool,
     files_only: bool,
-    regex: bool,
 }
 
 fn main() {
@@ -64,12 +58,10 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
 
     let settings = Settings {
-        pattern: args.arg_pattern.clone(),
-        re: Regex::new(format!("^{}$", args.arg_pattern).as_str()).unwrap(),
+        pattern: Regex::new(format!("^{}$", args.arg_pattern).as_str()).unwrap(),
         path: args.arg_path,
         invisible: args.flag_i || args.flag_invisible,
         files_only: args.flag_f || args.flag_filesonly,
-        regex: args.flag_r || args.flag_regex,
     };
 
     let dir = PathBuf::from(&settings.path);
@@ -113,17 +105,12 @@ fn ignore(path: &PathBuf, settings: &Settings) -> io::Result<bool> {
 }
 
 trait Matches {
-    fn matches(&self, settings: &Settings) -> bool;
+    fn matches(&self, &Regex) -> bool;
 }
 
 impl Matches for fs::DirEntry {
-    fn matches(&self, settings: &Settings) -> bool {
-        let fname = self.file_name().into_string().unwrap();
-        if settings.regex && settings.re.is_match(fname.as_str()) ||
-           fname == settings.pattern {
-            return true;
-        }
-        false
+    fn matches(&self, pattern: &Regex) -> bool {
+        pattern.is_match(self.file_name().to_str().unwrap())
     }
 }
 
@@ -212,7 +199,7 @@ fn search(q: &mut VecDeque<PathBuf>,
             results.scanned += 1;
         }
 
-        if f.matches(&settings) {
+        if f.matches(&settings.pattern) {
             println!("{}", try!(f.path().display_colour()));
             if dir {
                 results.directories += 1;
