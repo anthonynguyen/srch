@@ -8,7 +8,7 @@ use ansi_term::Colour;
 use docopt::Docopt;
 use regex::Regex;
 
-use std::{io, process};
+use std::{fs, io, process};
 use std::collections::VecDeque;
 use std::os::unix::fs::FileTypeExt;
 use std::path::PathBuf;
@@ -112,12 +112,26 @@ fn ignore(path: &PathBuf, settings: &Settings) -> io::Result<bool> {
     Ok(false)
 }
 
-trait Misc {
-    fn display_colour(&self) -> io::Result<String>;
+trait Matches {
     fn matches(&self, settings: &Settings) -> bool;
 }
 
-impl Misc for PathBuf {
+impl Matches for fs::DirEntry {
+    fn matches(&self, settings: &Settings) -> bool {
+        let fname = self.file_name().into_string().unwrap();
+        if settings.regex && settings.re.is_match(fname.as_str()) ||
+           fname == settings.pattern {
+            return true;
+        }
+        false
+    }
+}
+
+trait DisplayColour {
+    fn display_colour(&self) -> io::Result<String>;
+}
+
+impl DisplayColour for PathBuf {
     fn display_colour(&self) -> io::Result<String> {
         let s: &str = self.to_str().unwrap();
 
@@ -126,20 +140,6 @@ impl Misc for PathBuf {
         } else {
             Ok(s.to_string())
         }
-    }
-
-    fn matches(&self, settings: &Settings) -> bool {
-        let fname = self.file_name();
-        if fname == None {
-            return false;
-        }
-
-        let fname = fname.unwrap().to_str().unwrap();
-        if settings.regex && settings.re.is_match(fname) ||
-           fname.to_string() == settings.pattern {
-            return true;
-        }
-        false
     }
 }
 
@@ -200,8 +200,7 @@ fn search(q: &mut VecDeque<PathBuf>,
 
     for item in try!(path.read_dir()) {
         let f = try!(item); // f is a DirEntry
-        let p = f.path();
-        let dir = p.is_dir();
+        let dir = f.file_type().unwrap().is_dir();
         if dir {
             results.pushed += 1;
             q.push_back(f.path());
@@ -213,8 +212,8 @@ fn search(q: &mut VecDeque<PathBuf>,
             results.scanned += 1;
         }
 
-        if p.matches(&settings) {
-            println!("{}", try!(p.display_colour()));
+        if f.matches(&settings) {
+            println!("{}", try!(f.path().display_colour()));
             if dir {
                 results.directories += 1;
             } else {
