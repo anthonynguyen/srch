@@ -141,16 +141,6 @@ struct SearchResults {
     pushed: i32,
 }
 
-impl SearchResults {
-    fn add(&mut self, other: SearchResults) {
-        self.directories += other.directories;
-        self.files += other.files;
-
-        self.scanned += other.scanned;
-        self.pushed += other.pushed;
-    }
-}
-
 fn handle(path: &path::PathBuf, settings: &Settings) -> () {
     let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
     let mut results = SearchResults {
@@ -168,29 +158,20 @@ fn handle(path: &path::PathBuf, settings: &Settings) -> () {
     q.push_back(path.clone());
     while q.len() > 0 {
         let p = q.pop_front().unwrap();
-        let i = ignore(&p, settings);
-        match i {
-            Ok(tf) => {
-                if tf {
-                    continue;
-                }
-            }
+        match ignore(&p, settings) {
+            Ok(i) => i && continue,
             Err(_) => continue,
         };
 
-        let r = search(&mut q, &p, pattern, settings.files_only);
-        match r {
-            Ok(n) => {
-                results.add(n);
-            }
+        match search(&mut q, &p, pattern, settings.files_only, &mut results) {
+            Ok(_) => (),
             Err(_) => (),
         };
     }
 
-    print!("Explored {} directories and searched {} objects, ",
-           Colour::Yellow.bold().paint(results.pushed.to_string()),
-           Colour::Yellow.bold().paint(results.scanned.to_string()));
-    println!("found {} directories and {} files",
+    println!("Explored {} directories and searched {} objects, found {} directories and {} files",
+             Colour::Yellow.bold().paint(results.pushed.to_string()),
+             Colour::Yellow.bold().paint(results.scanned.to_string()),
              Colour::Green.bold().paint(results.directories.to_string()),
              Colour::Green.bold().paint(results.files.to_string()));
 }
@@ -198,33 +179,27 @@ fn handle(path: &path::PathBuf, settings: &Settings) -> () {
 fn search(q: &mut collections::VecDeque<path::PathBuf>,
           path: &path::PathBuf,
           pattern: &String,
-          ignore_dirs: bool)
-          -> std::io::Result<SearchResults> {
-    let mut results = SearchResults {
-        directories: 0,
-        files: 0,
-        scanned: 0,
-        pushed: 0,
-    };
+          ignore_dirs: bool,
+          results: &mut SearchResults)
+          -> std::io::Result<()> {
 
     for item in try!(path.read_dir()) {
         let f = try!(item); // f is a DirEntry
-        let dir: bool;
-        if f.path().is_dir() {
+        let p = f.path();
+        let dir = p.is_dir();
+        if dir {
             results.pushed += 1;
             q.push_back(f.path());
             if ignore_dirs {
                 continue;
             }
-            dir = true;
             results.scanned += 1;
         } else {
-            dir = false;
             results.scanned += 1;
         }
 
-        if f.path().matches(&pattern) {
-            println!("{}", try!(f.path().display_colour()));
+        if p.matches(&pattern) {
+            println!("{}", try!(p.display_colour()));
             if dir {
                 results.directories += 1;
             } else {
@@ -233,5 +208,5 @@ fn search(q: &mut collections::VecDeque<path::PathBuf>,
         }
     }
 
-    Ok(results)
+    Ok(())
 }
