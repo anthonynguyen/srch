@@ -1,16 +1,15 @@
 extern crate ansi_term;
 extern crate docopt;
 extern crate rustc_serialize;
+extern crate time;
 
 use ansi_term::Colour;
 use docopt::Docopt;
 
-use std::collections;
-use std::io;
-use std::path;
-use std::process;
-
+use std::{io, process};
+use std::collections::VecDeque;
 use std::os::unix::fs::FileTypeExt;
+use std::path::PathBuf;
 
 const USAGE: &'static str = "
 srch, a command-line file search utility written in Rust.
@@ -63,9 +62,9 @@ fn main() {
         files_only: args.flag_f || args.flag_filesonly,
     };
 
-    let dir = path::PathBuf::from(&settings.path);
+    let dir = PathBuf::from(&settings.path);
     if settings.path.is_empty() {
-        let curdir = path::PathBuf::from(".");
+        let curdir = PathBuf::from(".");
         handle(&curdir, &settings);
     } else if !dir.exists() {
         println!("Invalid search path: {}",
@@ -76,7 +75,7 @@ fn main() {
     }
 }
 
-fn ignore(path: &path::PathBuf, settings: &Settings) -> io::Result<bool> {
+fn ignore(path: &PathBuf, settings: &Settings) -> io::Result<bool> {
     if !path.is_dir() {
         return Ok(true);
     }
@@ -108,7 +107,7 @@ trait Misc {
     fn matches(&self, pattern: &String) -> bool;
 }
 
-impl Misc for path::PathBuf {
+impl Misc for PathBuf {
     fn display_colour(&self) -> io::Result<String> {
         let s: &str = self.to_str().unwrap();
 
@@ -141,8 +140,8 @@ struct SearchResults {
     pushed: i32,
 }
 
-fn handle(path: &path::PathBuf, settings: &Settings) -> () {
-    let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
+fn handle(path: &PathBuf, settings: &Settings) -> () {
+    let mut q: VecDeque<PathBuf> = VecDeque::new();
     let mut results = SearchResults {
         directories: 0,
         files: 0,
@@ -151,6 +150,8 @@ fn handle(path: &path::PathBuf, settings: &Settings) -> () {
     };
 
     let pattern = &settings.pattern;
+
+    let start = time::precise_time_ns();
 
     println!("Searching {} for {}",
              Colour::Yellow.bold().paint(path.to_str().unwrap()),
@@ -174,10 +175,14 @@ fn handle(path: &path::PathBuf, settings: &Settings) -> () {
              Colour::Yellow.bold().paint(results.scanned.to_string()),
              Colour::Green.bold().paint(results.directories.to_string()),
              Colour::Green.bold().paint(results.files.to_string()));
+
+    let elapsedms = (time::precise_time_ns() - start) / 1000000;
+    println!("Search took {}",
+             Colour::Blue.bold().paint((elapsedms).to_string() + "ms"));
 }
 
-fn search(q: &mut collections::VecDeque<path::PathBuf>,
-          path: &path::PathBuf,
+fn search(q: &mut VecDeque<PathBuf>,
+          path: &PathBuf,
           pattern: &String,
           ignore_dirs: bool,
           results: &mut SearchResults)
