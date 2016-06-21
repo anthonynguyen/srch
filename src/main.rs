@@ -39,6 +39,14 @@ struct Args {
     flag_filesonly: bool,
 }
 
+struct Settings {
+    pattern: String,
+    path: String,
+
+    invisible: bool,
+    files_only: bool,
+}
+
 fn main() {
     let args: Args = Docopt::new(USAGE)
         .unwrap()
@@ -48,20 +56,27 @@ fn main() {
         .decode()
         .unwrap_or_else(|e| e.exit());
 
-    let dir = path::PathBuf::from(&args.arg_path);
-    if args.arg_path.is_empty() {
+    let settings = Settings {
+        pattern: args.arg_pattern,
+        path: args.arg_path,
+        invisible: args.flag_i || args.flag_invisible,
+        files_only: args.flag_f || args.flag_filesonly,
+    };
+
+    let dir = path::PathBuf::from(&settings.path);
+    if settings.path.is_empty() {
         let curdir = path::PathBuf::from(".");
-        handle(&curdir, &args);
+        handle(&curdir, &settings);
     } else if !dir.exists() {
         println!("Invalid search path: {}",
-                 Colour::Red.bold().paint(args.arg_path.as_str()));
+                 Colour::Red.bold().paint(settings.path.as_str()));
         process::exit(1);
     } else {
-        handle(&dir, &args);
+        handle(&dir, &settings);
     }
 }
 
-fn ignore(path: &path::PathBuf, args: &Args) -> io::Result<bool> {
+fn ignore(path: &path::PathBuf, settings: &Settings) -> io::Result<bool> {
     if !path.is_dir() {
         return Ok(true);
     }
@@ -71,7 +86,7 @@ fn ignore(path: &path::PathBuf, args: &Args) -> io::Result<bool> {
         return Ok(true);
     }
 
-    if args.flag_i || args.flag_invisible {
+    if settings.invisible {
         return Ok(false);
     }
 
@@ -136,7 +151,7 @@ impl SearchResults {
     }
 }
 
-fn handle(path: &path::PathBuf, args: &Args) -> () {
+fn handle(path: &path::PathBuf, settings: &Settings) -> () {
     let mut q: collections::VecDeque<path::PathBuf> = collections::VecDeque::new();
     let mut results = SearchResults {
         directories: 0,
@@ -145,7 +160,7 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
         pushed: 1,
     };
 
-    let pattern = &args.arg_pattern;
+    let pattern = &settings.pattern;
 
     println!("Searching {} for {}",
              Colour::Yellow.bold().paint(path.to_str().unwrap()),
@@ -153,7 +168,7 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
     q.push_back(path.clone());
     while q.len() > 0 {
         let p = q.pop_front().unwrap();
-        let i = ignore(&p, args);
+        let i = ignore(&p, settings);
         match i {
             Ok(tf) => {
                 if tf {
@@ -163,7 +178,7 @@ fn handle(path: &path::PathBuf, args: &Args) -> () {
             Err(_) => continue,
         };
 
-        let r = search(&mut q, &p, pattern, args.flag_f || args.flag_filesonly);
+        let r = search(&mut q, &p, pattern, settings.files_only);
         match r {
             Ok(n) => {
                 results.add(n);
