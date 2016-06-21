@@ -1,10 +1,12 @@
 extern crate ansi_term;
 extern crate docopt;
+extern crate regex;
 extern crate rustc_serialize;
 extern crate time;
 
 use ansi_term::Colour;
 use docopt::Docopt;
+use regex::Regex;
 
 use std::{io, process};
 use std::collections::VecDeque;
@@ -24,6 +26,7 @@ Options:
     -v, --version           Show this program's version
     -i, --invisible         Also search inside directories starting with a . character
     -f, --filesonly         Only search filenames and NOT directory names
+    -r, --regex             Treat <pattern> as a regular expression
 ";
 
 #[derive(RustcDecodable)]
@@ -36,14 +39,19 @@ struct Args {
 
     flag_f: bool,
     flag_filesonly: bool,
+
+    flag_r: bool,
+    flag_regex: bool,
 }
 
 struct Settings {
     pattern: String,
+    re: Regex,
     path: String,
 
     invisible: bool,
     files_only: bool,
+    regex: bool,
 }
 
 fn main() {
@@ -56,10 +64,12 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
 
     let settings = Settings {
-        pattern: args.arg_pattern,
+        pattern: args.arg_pattern.clone(),
+        re: Regex::new(format!("^{}$", args.arg_pattern).as_str()).unwrap(),
         path: args.arg_path,
         invisible: args.flag_i || args.flag_invisible,
         files_only: args.flag_f || args.flag_filesonly,
+        regex: args.flag_r || args.flag_regex,
     };
 
     let dir = PathBuf::from(&settings.path);
@@ -104,7 +114,7 @@ fn ignore(path: &PathBuf, settings: &Settings) -> io::Result<bool> {
 
 trait Misc {
     fn display_colour(&self) -> io::Result<String>;
-    fn matches(&self, pattern: &String) -> bool;
+    fn matches(&self, settings: &Settings) -> bool;
 }
 
 impl Misc for PathBuf {
@@ -118,14 +128,15 @@ impl Misc for PathBuf {
         }
     }
 
-    fn matches(&self, pattern: &String) -> bool {
+    fn matches(&self, settings: &Settings) -> bool {
         let fname = self.file_name();
         if fname == None {
             return false;
         }
 
-        let fname = fname.unwrap().to_str().unwrap().to_string();
-        if fname == *pattern {
+        let fname = fname.unwrap().to_str().unwrap();
+        if settings.regex && settings.re.is_match(fname) ||
+           fname.to_string() == settings.pattern {
             return true;
         }
         false
@@ -164,7 +175,7 @@ fn handle(path: &PathBuf, settings: &Settings) -> () {
             Err(_) => continue,
         };
 
-        match search(&mut q, &p, pattern, settings.files_only, &mut results) {
+        match search(&mut q, &p, settings, &mut results) {
             Ok(_) => (),
             Err(_) => (),
         };
@@ -183,8 +194,7 @@ fn handle(path: &PathBuf, settings: &Settings) -> () {
 
 fn search(q: &mut VecDeque<PathBuf>,
           path: &PathBuf,
-          pattern: &String,
-          ignore_dirs: bool,
+          settings: &Settings,
           results: &mut SearchResults)
           -> std::io::Result<()> {
 
@@ -195,7 +205,7 @@ fn search(q: &mut VecDeque<PathBuf>,
         if dir {
             results.pushed += 1;
             q.push_back(f.path());
-            if ignore_dirs {
+            if settings.files_only {
                 continue;
             }
             results.scanned += 1;
@@ -203,7 +213,7 @@ fn search(q: &mut VecDeque<PathBuf>,
             results.scanned += 1;
         }
 
-        if p.matches(&pattern) {
+        if p.matches(&settings) {
             println!("{}", try!(p.display_colour()));
             if dir {
                 results.directories += 1;

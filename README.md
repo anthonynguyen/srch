@@ -12,6 +12,7 @@
         -v, --version           Show this program's version
         -i, --invisible         Also search inside directories starting with a . character
         -f, --filesonly         Only search filenames and NOT directory names
+        -r, --regex             Treat <pattern> as a regular expression
 
 ### Installation
 
