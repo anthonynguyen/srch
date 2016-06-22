@@ -10,8 +10,9 @@
     Options:
         -h, --help              Show this help screen
         -v, --version           Show this program's version
-        -i, --invisible         Also search inside directories starting with a . character
+        -d, --dotfolders        Also search inside directories starting with a . character
         -f, --filesonly         Only search filenames and NOT directory names
+        -i, --insensitive       Matches case-insensitively
 
 ### Notable Features
 

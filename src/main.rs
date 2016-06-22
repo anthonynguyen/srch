@@ -24,8 +24,9 @@ Usage:
 Options:
     -h, --help              Show this help screen
     -v, --version           Show this program's version
-    -i, --invisible         Also search inside directories starting with a . character
+    -d, --dotfolders        Also search inside directories starting with a . character
     -f, --filesonly         Only search filenames and NOT directory names
+    -i, --insensitive       Matches case-insensitively
 ";
 
 #[derive(RustcDecodable)]
@@ -33,18 +34,21 @@ struct Args {
     arg_pattern: String,
     arg_path: String,
 
-    flag_i: bool,
-    flag_invisible: bool,
+    flag_d: bool,
+    flag_dotfolders: bool,
 
     flag_f: bool,
     flag_filesonly: bool,
+
+    flag_i: bool,
+    flag_insensitive: bool,
 }
 
 struct Settings {
     pattern: Regex,
     path: String,
 
-    invisible: bool,
+    dot: bool,
     files_only: bool,
 }
 
@@ -57,10 +61,17 @@ fn main() {
         .decode()
         .unwrap_or_else(|e| e.exit());
 
+    let re: Regex;
+    if args.flag_i || args.flag_insensitive {
+        re = Regex::new(format!("(?i)^{}$", args.arg_pattern).as_str()).unwrap();
+    } else {
+        re = Regex::new(format!("^{}$", args.arg_pattern).as_str()).unwrap();
+    }
+
     let settings = Settings {
-        pattern: Regex::new(format!("^{}$", args.arg_pattern).as_str()).unwrap(),
+        pattern: re,
         path: args.arg_path,
-        invisible: args.flag_i || args.flag_invisible,
+        dot: args.flag_d || args.flag_dotfolders,
         files_only: args.flag_f || args.flag_filesonly,
     };
 
@@ -87,7 +98,7 @@ fn ignore(path: &PathBuf, settings: &Settings) -> io::Result<bool> {
         return Ok(true);
     }
 
-    if settings.invisible {
+    if settings.dot {
         return Ok(false);
     }
 
